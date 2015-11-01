@@ -150,7 +150,7 @@
 
 (def child (om/factory Child {:keyfn :db/id}))
 
-(def orly (om/factory o/Orly {:keyfn :db/id}))
+(def orly (om/factory o/Orly))
 
 (defui MainArea
        static om/IQuery
@@ -191,7 +191,7 @@
 
 (def reconciler
      (om/reconciler {:state  conn
-                     :parser (om/parser {:read read :mutate mutate})}))
+                      :parser (om/parser {:read read :mutate mutate})}))
 
 (om/add-root! reconciler
               App (gdom/getElement "app"))
