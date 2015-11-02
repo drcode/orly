@@ -14,42 +14,40 @@
             :height y}))
 
 (defn recalc-layout [component]
-      (let [{:keys [width height]} (om/get-state component)
-            rects                  (:rects (om/props component))
-            grow (:grow (om/get-computed (om/props component)))
-            sizes                  (vec (for [{:keys [:rect/relwidth :rect/relheight]} rects] ;is vec needed?
-                                             [(max 1 relwidth) (max 1 relheight)]))
+      (let [{:keys [width height]}                     (om/get-state component)
+            rects                                      (:rects (om/props component))
+            {:keys [grow after-transaction]}           (om/get-computed (om/props component))
+            sizes                                      (vec (for [{:keys [:rect/relwidth :rect/relheight]} rects] ;is vec needed?
+                                                                 [(max 1 relwidth) (max 1 relheight)]))
             {:keys [positions]
              {:keys [rows columns] :as slices} :slices
-             :as layout}           (rp/layout sizes
-                                           (/ width height)
-                                           (fn [_ _]))
-             sizes                  (vec (rg/grow (count rects) slices))
-             layout-width           (last columns)
-             layout-height          (last rows)
-             scalex                 (/ width layout-width)
-             scaley                 (/ height layout-height)
-             scale                  (min scalex scaley)]
+             :as layout}                               (rp/layout sizes
+                                                                  (/ width height)
+                                                                  (fn [_ _]))
+             sizes                                     (vec (rg/grow (count rects) slices))
+             layout-width                              (last columns)
+             layout-height                             (last rows)
+             scalex                                    (/ width layout-width)
+             scaley                                    (/ height layout-height)
+             scale                                     (min scalex scaley)]
            (om/transact! component
-                         (vec (concat (map-indexed (fn [index {:keys [:db/id :rect/relwidth :rect/relheight] :as item}]
-                                                       (let [[width height] (sizes index)
-                                                             [x y] (positions index)]
-                                                            `(app/update-rect ~(merge item
-                                                                                      (if grow
-                                                                                          {:db/id id
-                                                                                           :rect/left   (* scalex x)
-                                                                                           :rect/top    (* scaley y)
-                                                                                           :rect/width  (* scalex width)
-                                                                                           :rect/height (* scaley height)}
-                                                                                          {:db/id id
-                                                                                           :rect/left   (* scale x) 
-                                                                                           :rect/top    (* scale y)
-                                                                                           :rect/width  (* scale relwidth)
-                                                                                           :rect/height (* scale relheight)})))))
-                                                   rects)
-                                      [{:main [{:rects [:rect/width :rect/height :rect/left :rect/top]}]}])
-                              ))
-           ) 1)
+                         (vec (map-indexed (fn [index {:keys [:db/id :rect/relwidth :rect/relheight] :as item}]
+                                               (let [[width height] (sizes index)
+                                                     [x y] (positions index)]
+                                                    `(app/update-rect ~(merge item
+                                                                              (if grow
+                                                                                  {:db/id id
+                                                                                   :rect/left   (* scalex x)
+                                                                                   :rect/top    (* scaley y)
+                                                                                   :rect/width  (* scalex width)
+                                                                                   :rect/height (* scaley height)}
+                                                                                  {:db/id id
+                                                                                   :rect/left   (* scale x) 
+                                                                                   :rect/top    (* scale y)
+                                                                                   :rect/width  (* scale relwidth)
+                                                                                   :rect/height (* scale relheight)})))))
+                                           rects)))
+           (after-transaction)))
 
 (defn update-dimensions [component]
       (let [{:keys [width height]} (get-div-dimensions (dom/node component))]
@@ -67,7 +65,7 @@
                                             (update-dimensions this))]
                                 (om/set-state! this {:resize-fn resize-fn})
                                 (.addEventListener js/window "resize" resize-fn)))
-       (componentWillUpdate [this props _]
+       (componentWillUpdate [this _ _]
                             (js/setTimeout #(recalc-layout this) 1))
        (render [this]
                (let [children (om/children this)]

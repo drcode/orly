@@ -60,7 +60,7 @@
                                     "Y")
                             "Built on Om Next, this library publishes a single component, named "
                             (dom/i nil "Orly")
-                            ", which optimally packs arbitrary child components inside of itself- You simply pass it these components and it handles the layout. It implements a reasonably fast and reasonably efficient rectangle packing algorithm, using desired relative widths and heights, which you also supply, in the standard Om Next manner (see the "
+                            ", which optimally packs arbitrary child components inside of itself- You simply pass it these components and it handles the layout. It implements a reasonably fast and reasonably optimal rectangle packing algorithm, using desired relative widths and heights, which you also supply, in the standard Om Next manner (see the "
                             (dom/a #js {:href "https://github.com/drcode/orly"} "github page")
                             " for details on usage)"
                             (dom/br nil)
@@ -70,7 +70,7 @@
                             (dom/h3 nil "Benefits of the ORLY and Om Next design:")
                             (dom/ol nil
                                     (dom/li nil
-                                            "Instead of mucking with the raw DOM, all layout actions of the Orly component are performed as transactions against your app's immutable client state, using the flexible Om Next \"query selector\" mechanism. This means all layout activity is done in a tidy fashion and under your app's full control.")
+                                            "Instead of mucking with the raw DOM, all layout actions of the Orly component are performed as auditable transactions against your app's client state, using the flexible Om Next \"query selector\" mechanism. This means all layout activity is done in a tidy fashion and under your app's full control.")
                                     (dom/li nil
                                             "Child components (i.e. the tiles) are just plain React components, defined by your app. They are sent their correct coordinates as needed through the Om Next data propagation mechanism, again through \"query selectors\" but otherwise can contain completely arbitrary DOM content and styling.")))}
       :owl {:image "owl.png"}

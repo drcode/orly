@@ -42,14 +42,29 @@
 (defmethod mutate 'app/update-rect
            [{:keys [state]} _ rect]
            {:value  []
-            :action (fn []
-                        (d/transact! state [rect]))})
+            :action #(d/transact! state [rect])})
 
 (defmethod mutate 'app/update-app
            [{:keys [state]} _ app]
            {:value  []
-            :action (fn []
-                        (d/transact! state [app]))})
+            :action #(d/transact! state [app])})
+
+(defn twiddle [component entity key positive?]
+      (dom/span #js {:style #js {:backgroundColor "black"
+                                 :borderRadius    "0.2em"
+                                 :paddingLeft     "0.2em"
+                                 :paddingRight    "0.2em"
+                                 :cursor          "pointer"
+                                 :color           "white"}
+                     :onClick (fn []
+                                  (om/transact! component `[(app/update-rect ~(assoc (select-keys entity [:db/id :rect/relwidth :rect/relheight])
+                                                                                     key (if positive?
+                                                                                             (inc (key entity))
+                                                                                             (max 1 (dec (key entity))))))
+                                                            {:main [{:layout [{:rects [:rect/relwidth :rect/relheight]}]}]}]))}
+                (if positive?
+                    "+"
+                    "-")))
 
 (defui Property
        static om/IQuery
@@ -60,43 +75,25 @@
                (let [entity   (om/props this)
                      {:keys [on-select-change selected]} (om/get-computed entity)
                      prop-row (fn [key text]
-                                  (let [twiddle (fn [positive?]
-                                                    (dom/span #js {:style #js {:backgroundColor "black"
-                                                                               :borderRadius "0.2em"
-                                                                               :padding-left "0.2em"
-                                                                               :padding-right "0.2em"
-                                                                               :color "white"}
-                                                                   :onClick (fn []
-                                                                                (om/transact! this `[(app/update-rect ~(assoc entity
-                                                                                                                              key (if positive?
-                                                                                                                                      (inc (key entity))
-                                                                                                                                      (max 1 (dec (key entity))))))
-                                                                                                     {:main [{:layout [{:rects [:rect/relwidth :rect/relheight]}]}] }]))
-                                                                   }
-                                                              (if positive?
-                                                                       "+"
-                                                                       "-")))]
-                                       (dom/div #js {:style #js {:padding "0.2em"
-                                                                 :padding-right "1.8em"
-                                                                 :backgroundColor "#DDD"}}
-                                                text
-                                                " "
-                                                (twiddle false)
-                                                " "
-                                                (key entity)
-                                                " "
-                                                (twiddle true))))]
+                                  (dom/div #js {:style #js {:padding "0.2em"
+                                                            :paddingRight "1.8em"
+                                                            :backgroundColor "#DDD"}}
+                                           text
+                                           " "
+                                           (twiddle this entity key false)
+                                           " "
+                                           (key entity)
+                                           " "
+                                           (twiddle this entity key true)))]
                     
                     (dom/div #js {:style #js {:textAlign "right"
                                               :opacity (if selected
                                                            "1.0"
                                                            "0.7")}
                                   :onMouseEnter (fn []
-                                                    (on-select-change (:db/id entity))
-                                                    #_(om/transact! this `[(app/update-app ~(assoc entity :selected-rect (:db/id entity)))]))
+                                                    (on-select-change (:db/id entity)))
                                   :onMouseLeave (fn []
-                                                    (on-select-change false)
-                                                    #_(om/transact! this `[(app/update-app ~(assoc entity :selected-rect false))]))}
+                                                    (on-select-change false))}
                              (prop-row :rect/relwidth "Width")
                              (prop-row :rect/relheight "Height")
                              (dom/div #js {:style #js {:height          "0.2em"
@@ -133,7 +130,7 @@
                                                          :paddingRight "1em"}}
                                         (dom/input #js {:type "checkbox"
                                                                             :id "grow_checkbox"
-                                                                            :style #js {:margin-top "1em"}
+                                                                            :style #js {:marginTop "1em"}
                                                                             :checked grow
                                                                             :onChange (fn [ev]
                                                                                           (om/transact! this `[(app/update-app ~(assoc app :app/grow (.-checked (.-target ev))))
@@ -154,7 +151,7 @@
                      {:keys [selected on-select-change]} (om/get-computed entity)
                      {:keys [color html image]} (co/tile-content content)]
                     (dom/div #js {:style #js {:backgroundColor color
-                                              :backgroundImage (str "url(images/" image ")")
+                                              :backgroundImage (and image (str "url(images/" image ")"))
                                               :backgroundSize  "100% 100%"
                                               :overflow        "hidden"
                                               :position        "absolute"
@@ -199,7 +196,10 @@
                                                   :backgroundColor "#111"}}
                                  (let [{:keys [rects layout app]} (om/props this)
                                        {:keys [:app/selected-rect :app/grow]} app]
-                                      (orly (om/computed layout {:grow grow})
+                                      (orly (om/computed layout
+                                                         {:grow              grow
+                                                          :after-transaction (fn []
+                                                                                 (om/transact! this [{:main [{:rects [:rect/width :rect/height :rect/left :rect/top]}]}]))})
                                             (for [item rects]
                                                  (child (om/computed item
                                                                      {:selected         (= (:db/id item) selected-rect)
