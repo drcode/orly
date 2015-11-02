@@ -2,8 +2,8 @@
     (:require [goog.dom :as gdom]
               [om.next :as om :refer-macros [defui]]
               [om.dom :as dom]
-              [orly.rectangle-packing :refer [layout]]
-              [orly.rectangle-growing :refer [grow]]))
+              [orly.rectangle-packing :as rp]
+              [orly.rectangle-growing :as rg]))
 
 (defn get-div-dimensions
       "Get width and height of a div with a specified id."
@@ -13,19 +13,18 @@
            {:width  x
             :height y}))
 
-(def use-grow false)
-
 (defn recalc-layout [component]
       (let [{:keys [width height]} (om/get-state component)
-            rects                  (:layout/rects (om/props component))
+            rects                  (:rects (om/props component))
+            grow (:grow (om/get-computed (om/props component)))
             sizes                  (vec (for [{:keys [:rect/relwidth :rect/relheight]} rects] ;is vec needed?
                                              [(max 1 relwidth) (max 1 relheight)]))
             {:keys [positions]
              {:keys [rows columns] :as slices} :slices
-             :as layout}           (layout sizes
+             :as layout}           (rp/layout sizes
                                            (/ width height)
                                            (fn [_ _]))
-             sizes                  (vec (grow (count rects) slices))
+             sizes                  (vec (rg/grow (count rects) slices))
              layout-width           (last columns)
              layout-height          (last rows)
              scalex                 (/ width layout-width)
@@ -36,7 +35,7 @@
                                                        (let [[width height] (sizes index)
                                                              [x y] (positions index)]
                                                             `(app/update-rect ~(merge item
-                                                                                      (if use-grow
+                                                                                      (if grow
                                                                                           {:db/id id
                                                                                            :rect/left   (* scalex x)
                                                                                            :rect/top    (* scaley y)
@@ -61,7 +60,7 @@
 (defui Orly
        static om/IQuery
        (query [this]
-              [{:layout/rects [:db/id :rect/relwidth :rect/relheight]}])
+              [{:rects [:db/id :rect/relwidth :rect/relheight]}])
        Object
        (componentWillMount [this]
                            (let [resize-fn (fn []

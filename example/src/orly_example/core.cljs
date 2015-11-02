@@ -2,72 +2,54 @@
     (:require [goog.dom :as gdom]
               [om.next :as om :refer-macros [defui]]
               [om.dom :as dom]
+              [datascript.core :as d]
               [orly.core :as o]
-              [datascript.core :as d]))
+              [orly-example.content :as co]))
 
 (def conn (d/create-conn {}))
 
-(d/transact! conn
-             [{:db/id -1
-               :rect/color "purple"
-               :rect/relwidth 3
-               :rect/relheight 2}
-              {:db/id -2
-               :rect/color "orange"
-               :rect/relwidth 2
-               :rect/relheight 2}
-              {:db/id -3
-               :rect/color "yellow"
-               :rect/relwidth 1
-               :rect/relheight 1}
-              {:db/id -4
-               :rect/color "pink"
-               :rect/relwidth 1
-               :rect/relheight 1}
-              {:db/id -5
-               :rect/color "navy"
-               :rect/relwidth 1
-               :rect/relheight 1}
-              {:db/id -6
-               :rect/color "silver"
-               :rect/relwidth 1
-               :rect/relheight 1}])
+(d/transact! conn co/initial-data)
 
 (enable-console-print!)
 
-(defn read-rects [state selector]
-      (d/q '[:find [(pull ?e ?selector) ...]
-             :in $ ?selector 
-             :where [?e :rect/color ?color]]
-           (d/db state)
-           selector))
-
 (defmulti read om/dispatch)
 
-(defmethod read :proplist [{:keys [state selector] :as env} _ _]
-           {:value {:properties (read-rects state (:properties (first selector)))}})
+(defmethod read :rects [{:keys [state selector] :as env} _ _]
+           {:value (d/q '[:find [(pull ?e ?selector) ...]
+                          :in $ ?selector 
+                          :where [?e :rect/content ?content]]
+                        (d/db state)
+                        selector)})
 
-(defmethod read :main [{:keys [state selector] :as env} _ _]
-           (let [k (set (distinct (apply concat (map keys selector))))
-                 zup {:value {}}
-                 zup (if (k :layout)
-                         (assoc-in zup [:value :layout] {:layout/rects (read-rects state [:db/id :rect/relwidth :rect/relheight])})
-                                                  zup
-)
-                 zup (if (k :rects)
-                         (assoc-in zup [:value :rects] (read-rects state [:db/id :rect/color :rect/width :rect/height :rect/left :rect/top]))
-                         zup)]
-                zup))
+(defmethod read :app [{:keys [state selector] :as env} _ _]
+           {:value (first (d/q '[:find [(pull ?e ?selector) ...]
+                            :in $ ?selector 
+                            :where [?e :app/grow ?grow]]
+                          (d/db state)
+                          selector))})
+
+(defmethod read :proplist [{:keys [selector parser] :as env} _ _]
+           {:value (parser env selector)})
+
+(defmethod read :layout [{:keys [selector parser] :as env} _ _]
+           {:value (parser env selector)})
+
+(defmethod read :main [{:keys [state selector parser] :as env} _ _]
+           {:value (parser env selector)})
 
 (defmulti mutate om/dispatch)
 
 (defmethod mutate 'app/update-rect
            [{:keys [state]} _ rect]
-           {:value []
+           {:value  []
             :action (fn []
-                        (d/transact! state
-                                     [rect])
-                        )})
+                        (d/transact! state [rect]))})
+
+(defmethod mutate 'app/update-app
+           [{:keys [state]} _ app]
+           {:value  []
+            :action (fn []
+                        (d/transact! state [app]))})
 
 (defui Property
        static om/IQuery
@@ -76,6 +58,7 @@
        Object
        (render [this]
                (let [entity   (om/props this)
+                     {:keys [on-select-change selected]} (om/get-computed entity)
                      prop-row (fn [key text]
                                   (let [twiddle (fn [positive?]
                                                     (dom/span #js {:style #js {:backgroundColor "black"
@@ -88,14 +71,14 @@
                                                                                                                               key (if positive?
                                                                                                                                       (inc (key entity))
                                                                                                                                       (max 1 (dec (key entity))))))
-                                                                                                     {:main [{:layout [{:layout/rects [:rect/relwidth :rect/relheight]}]}] }]))
+                                                                                                     {:main [{:layout [{:rects [:rect/relwidth :rect/relheight]}]}] }]))
                                                                    }
                                                               (if positive?
                                                                        "+"
                                                                        "-")))]
                                        (dom/div #js {:style #js {:padding "0.2em"
                                                                  :padding-right "1.8em"
-                                                                 :backgroundColor "silver"}}
+                                                                 :backgroundColor "#DDD"}}
                                                 text
                                                 " "
                                                 (twiddle false)
@@ -103,7 +86,17 @@
                                                 (key entity)
                                                 " "
                                                 (twiddle true))))]
-                    (dom/div #js {:style #js {:textAlign "right"}}
+                    
+                    (dom/div #js {:style #js {:textAlign "right"
+                                              :opacity (if selected
+                                                           "1.0"
+                                                           "0.7")}
+                                  :onMouseEnter (fn []
+                                                    (on-select-change (:db/id entity))
+                                                    #_(om/transact! this `[(app/update-app ~(assoc entity :selected-rect (:db/id entity)))]))
+                                  :onMouseLeave (fn []
+                                                    (on-select-change false)
+                                                    #_(om/transact! this `[(app/update-app ~(assoc entity :selected-rect false))]))}
                              (prop-row :rect/relwidth "Width")
                              (prop-row :rect/relheight "Height")
                              (dom/div #js {:style #js {:height          "0.2em"
@@ -114,39 +107,74 @@
 (defui PropertyList
        static om/IQuery
        (query [this]
-              [{:properties (om/get-query Property)}])
+              [{:rects (om/get-query Property)} {:app [:db/id :app/selected-rect :app/grow]}])
        Object
        (render [this]
-               (dom/div #js {:style #js {:position        "absolute"
-                                         :top             0
-                                         :left            0
-                                         :width           "10em"
-                                         :height          "100%"
-                                         :backgroundColor "grey"
-                                         :textAlign      "center"}}
-                        (dom/div #js {:style #js {:backgroundColor "grey"
-                                                  :padding "0.5em"
-                                                  :color           "white"}}
-                                 "Relative Dimensions")
-                        (for [p (:properties (om/props this))]
-                             (property p)))))
+               (let [{:keys [rects app]} (om/props this)
+                     {:keys [:app/selected-rect :app/grow]} app]
+                    (dom/div #js {:style #js {:position        "absolute"
+                                              :top             0
+                                              :left            0
+                                              :width           "10em"
+                                              :height          "100%"
+                                              :backgroundColor "grey"
+                                              :textAlign       "center"}}
+                             (dom/div #js {:style #js {:backgroundColor "grey"
+                                                       :padding         "0.5em"
+                                                       :color           "white"}}
+                                      "Relative Dimensions")
+                             (for [r rects]
+                                  (property (om/computed r
+                                                         {:selected (= (:db/id r) selected-rect)
+                                                          :on-select-change (fn [id]
+                                                                                (om/transact! this `[(app/update-app ~(assoc app :app/selected-rect id))
+                                                                                                     {:main [:app]}]))})))
+                             (dom/label #js {:style #js {:paddingLeft "1em"
+                                                         :paddingRight "1em"}}
+                                        (dom/input #js {:type "checkbox"
+                                                                            :id "grow_checkbox"
+                                                                            :style #js {:margin-top "1em"}
+                                                                            :checked grow
+                                                                            :onChange (fn [ev]
+                                                                                          (om/transact! this `[(app/update-app ~(assoc app :app/grow (.-checked (.-target ev))))
+                                                                                                               {:main [:app]}]))})
+                                        "Expand tiles to fit space")
+))))
 
 (def property-list (om/factory PropertyList))
 
 (defui Child
        static om/IQuery
        (query [this]
-              [:db/id :rect/color :rect/width :rect/height :rect/left :rect/top])
+              [:db/id :rect/content :rect/width :rect/height :rect/left :rect/top])
        Object
        (render [this]
-               (let [{:keys [:db/id :rect/color :rect/width :rect/height :rect/top :rect/left]} (om/props this)]
+               (let [entity (om/props this)
+                     {:keys [:db/id :rect/content :rect/width :rect/height :rect/top :rect/left]} entity
+                     {:keys [selected on-select-change]} (om/get-computed entity)
+                     {:keys [color html image]} (co/tile-content content)]
                     (dom/div #js {:style #js {:backgroundColor color
-                                              :position         "absolute"
-                                              :width            (or width 0)
-                                              :height           (or height 0)
-                                              :left             (or left 0)
-                                              :top              (or top 0)}}
-                             color))))
+                                              :backgroundImage (str "url(images/" image ")")
+                                              :backgroundSize  "100% 100%"
+                                              :overflow        "hidden"
+                                              :position        "absolute"
+                                              :outlineWidth    "0.2em"
+                                              :outlineColor    "white"
+                                              :outlineStyle    (if selected
+                                                                   "solid"
+                                                                   "none")
+                                              :zIndex          (if selected
+                                                                   100
+                                                                   0)
+                                              :width           (or width 0)
+                                              :height          (or height 0)
+                                              :left            (or left 0)
+                                              :top             (or top 0)}
+                                  :onMouseEnter (fn []
+                                                    (on-select-change (:db/id entity)))
+                                  :onMouseLeave (fn []
+                                                    (on-select-change false))}
+                             (or html color)))))
 
 (def child (om/factory Child {:keyfn :db/id}))
 
@@ -155,11 +183,11 @@
 (defui MainArea
        static om/IQuery
        (query [this]
-              [{:layout (om/get-query o/Orly)} {:rects (om/get-query Child)}])
+              [{:layout (om/get-query o/Orly)} {:rects (om/get-query Child)} {:app [:db/id :app/selected-rect :app/grow]}])
        Object
        (render [this]
                (dom/div #js {:style #js {:position "absolute"
-                                         :top      0
+                                          :top      0
                                          :left     "10em"
                                          :right    0
                                          :height   "100%"}}
@@ -168,11 +196,16 @@
                                                   :left            "3em"
                                                   :right           "3em"
                                                   :bottom          "3em"
-                                                  :backgroundColor "grey"}}
-                                 (let [{:keys [rects layout]} (om/props this)]
-                                      (orly layout
+                                                  :backgroundColor "#111"}}
+                                 (let [{:keys [rects layout app]} (om/props this)
+                                       {:keys [:app/selected-rect :app/grow]} app]
+                                      (orly (om/computed layout {:grow grow})
                                             (for [item rects]
-                                                 (child item))))))))
+                                                 (child (om/computed item
+                                                                     {:selected         (= (:db/id item) selected-rect)
+                                                                      :on-select-change (fn [id]
+                                                                                            (om/transact! this `[(app/update-app ~(assoc app :app/selected-rect id))
+                                                                                                                 {:proplist [:rects :app]}]))})))))))))
 
 (def main-area (om/factory MainArea))
 
