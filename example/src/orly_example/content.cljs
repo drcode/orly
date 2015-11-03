@@ -65,7 +65,7 @@
                             " for details on usage)"
                             (dom/br nil)
                             (dom/br nil)
-                            "To see how the Orly layout enigine works, press the +/- buttons on the left and see what happens! (Also, try out the checkbox below the buttons)"
+                            "To see how the Orly layout engine works, press the +/- buttons on the left and see what happens! (Also, try out the checkbox below the buttons)"
                             (dom/br nil)
                             (dom/h3 nil "Benefits of the ORLY and Om Next design:")
                             (dom/ol nil

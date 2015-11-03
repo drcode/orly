@@ -16,7 +16,7 @@ In order to use the Orly component, your Om Next app needs to do the following t
 3. Watch for an "after-transaction" event in the parent control, to generate additional read transactions that inform the child components (i.e. tiles) of the new layout.
 4. Create child components that update their layout in response to the new data.
 
-## Implement parser read function that pass rectangle data to Orly
+## Implement parser read function that passes rectangle data to Orly
 
 The Orly component contains the following query selector:
 
@@ -74,11 +74,11 @@ For more details on usage, please see the included example, which you can also v
 
 ## TODOS
 
-1. This app does not currently support Google Closure's SIMPLE_OPTIMIZATIONS or ADVANCED_OPTIMIZATIONS. The reason for this is still unclear, but should be resolved soon.
+1. This app does not currently support Google Closure's ADVANCED_OPTIMIZATIONS. The reason for this is still unclear, but should be resolved soon.
 2. The way layout transactions are handled seems a bit awkward and will likely be improved in the future.
 3. There is a setTimeout call in the Orly component to sidestep a React issue and this is causing some FOUC (Flash of unstyled content).
 4. The "grow" feature causes tile overlap on some edge cases that needs to be resolved.
-5. My own understanding of Om Next is still incopmplete- This library will probably change in response to feedback from other early Om Next developers.
+5. My own understanding of Om Next is still incomplete- This library will probably change in response to feedback from other early Om Next developers.
 
 ## License
 
